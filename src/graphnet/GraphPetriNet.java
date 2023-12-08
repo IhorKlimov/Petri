@@ -643,19 +643,25 @@ public class GraphPetriNet implements Cloneable, Serializable {
     public void printStatistics(JTextArea area) {
 
         area.append("\n Statistics of Petri net places:\n");
+        System.out.println("\n Statistics of Petri net places:\n");
         for (GraphPetriPlace grP : graphPetriPlaceList) {
             PetriP P = grP.getPetriPlace();
-            area.append("Place " + P.getName() + ": mean value = " + Double.toString(P.getMean()) + "\n"
+            String text = "Place " + P.getName() + ": mean value = " + Double.toString(P.getMean()) + "\n"
                     + "         max value = " + Double.toString(P.getObservedMax()) + "\n"
-                    + "         min value = " + Double.toString(P.getObservedMin()) + "\n");
+                    + "         min value = " + Double.toString(P.getObservedMin()) + "\n";
+            System.out.println(text);
+            area.append(text);
 
         }
         area.append("\n Statistics of Petri net transitions:\n");
+        System.out.println("\n Statistics of Petri net transitions:\n");
         for (GraphPetriTransition grT : graphPetriTransitionList) {
             PetriT T = grT.getPetriTransition();
-            area.append("Transition " + T.getName() + " has mean value " + Double.toString(T.getMean()) + "\n"
+            String text = "Transition " + T.getName() + " has mean value " + Double.toString(T.getMean()) + " number of completed: " + T.getNumOfCompleted()  + "\n"
                     + "         max value = " + Double.toString(T.getObservedMax()) + "\n"
-                    + "         min value = " + Double.toString(T.getObservedMin()) + "\n");
+                    + "         min value = " + Double.toString(T.getObservedMin()) + "\n";
+            System.out.println(text);
+            area.append(text);
         }
 
     }

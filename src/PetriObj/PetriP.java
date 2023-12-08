@@ -1,6 +1,8 @@
 package PetriObj;
 
 import java.io.Serializable;
+import java.util.LinkedList;
+import java.util.Stack;
 
 /*
  * To change this template, choose Tools | Templates
@@ -17,6 +19,9 @@ public class PetriP extends PetriMainElement implements Cloneable, Serializable 
     private String name;
     private int number;
     private double mean;
+    private LinkedList<Double> inTimes = new LinkedList<Double>() ;
+    private int totalCount;
+    private double totalRunTime;
     private static int next = 0;//додано 1.10.2012, лічильник об"єктів
     private int observedMax;
     private int observedMin;
@@ -146,7 +151,7 @@ public class PetriP extends PetriMainElement implements Cloneable, Serializable 
      *
      * @param a value on which increase the quantity of markers
      */
-    public void increaseMark(int a) {
+    public void increaseMark(int a, double currentTime) {
         mark += a;
         if (observedMax < mark) {
             observedMax = mark;
@@ -154,20 +159,25 @@ public class PetriP extends PetriMainElement implements Cloneable, Serializable 
         if (observedMin > mark) {
             observedMin = mark;
         }
-
+        inTimes.add(currentTime);
+        totalCount++;
     }
 
     /**
      *
      * @param a value on which decrease the quantity of markers
      */
-    public void decreaseMark(int a) {
+    public void decreaseMark(int a, double currentTime) {
         mark -= a;
         if (observedMax < mark) {
             observedMax = mark;
         }
         if (observedMin > mark) {
             observedMin = mark;
+        }
+        if (inTimes.size() != 0){
+            double difference = currentTime - inTimes.poll();
+            totalRunTime += difference;
         }
     }
 
@@ -267,5 +277,8 @@ public class PetriP extends PetriMainElement implements Cloneable, Serializable 
     public void setId(String id) {
         this.id = id;
     }
-
+    
+    public double getMeanRunTime(){
+        return totalRunTime / totalCount;
+    }
 }

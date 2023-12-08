@@ -16,7 +16,7 @@ import javax.swing.JOptionPane;
  *  @author Inna V. Stetsenko
  */
 public class PetriT extends PetriMainElement implements Cloneable, Serializable {
-
+      private static final long serialVersionUID = 279567552168841788L;
    // private static double timeModeling = Double.MAX_VALUE - 1;
 
     
@@ -28,11 +28,13 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
     private double probability;
 
     private double minTime;
+    private OnCalculateNumberOfLinks onCalculateNumberOfLinks;
     private double timeServ;
+    private double totalRunTime;
     private double parametr; //середнє значення часу обслуговування
     private double paramDeviation; //середнє квадратичне відхилення часу обслуговування
     private String distribution;
-    private ArrayList<Double> timeOut = new ArrayList<>();
+    private ArrayList<TimeDelay> timeOut = new ArrayList<>();
     private ArrayList<Integer> inP = new ArrayList<>();
     private ArrayList<Integer> inPwithInf = new ArrayList<>();
     private ArrayList<Integer> quantIn = new ArrayList<>();
@@ -43,6 +45,8 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
     private int num;  // номер каналу багатоканального переходу, що відповідає найближчий події
     private int number; // номер переходу за списком
     private double mean;  // спостережуване середнє значення кількості активних каналів переходу
+    private int numOfCompleted;
+    private int numOfStarted;
     private int observedMax;
     private int observedMin;
     private static int next = 0; //додано 1.10.2012
@@ -84,7 +88,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
         distribution = null;
         number = next;
         next++;
-        timeOut.add(Double.MAX_VALUE); // не очікується вихід маркерів з каналів переходу
+        timeOut.add(new TimeDelay(Double.MAX_VALUE, 0)); // не очікується вихід маркерів з каналів переходу
         this.minEvent();
     }
 
@@ -271,7 +275,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
     /**
      * @return the timeOut
      */
-    public ArrayList<Double> getTimeOut() {
+    public ArrayList<TimeDelay> getTimeOut() {
         return timeOut;
     }
 
@@ -407,6 +411,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
         } catch (ExceptionInvalidTimeDelay ex) {
             Logger.getLogger(PetriT.class.getName()).log(Level.SEVERE, null, ex);
         }
+//        System.out.println("generateTimeServ "+ getName());
         return timeServ;
     }
 
@@ -502,7 +507,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
 
     }
 
-    /**
+        /**
      * This method determines the places which is output for the transition.
      * <br>
      * The class PetriNet use this method for creating net with given arrays of
@@ -582,12 +587,16 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
     public void actIn(PetriP[] pp, double currentTime) {
         if (this.condition(pp) == true) {
             for (int i = 0; i < inP.size(); i++) {
-                pp[inP.get(i)].decreaseMark(quantIn.get(i));
+                pp[inP.get(i)].decreaseMark(quantIn.get(i), currentTime);
             }
             if (buffer == 0) {
-                timeOut.set(0, currentTime + this.getTimeServ());
+                double delay = this.getTimeServ();
+                timeOut.set(0, new TimeDelay(currentTime + delay, delay));
+                totalRunTime += delay;
             } else {
-                timeOut.add(currentTime + this.getTimeServ());
+                double delay = this.getTimeServ();
+                timeOut.add(new TimeDelay(currentTime + delay, delay));
+                totalRunTime += delay;
             }
             if(moments){
                 inMoments.add(currentTime);
@@ -598,7 +607,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
             }
 
             this.minEvent();
-
+            numOfStarted++;
         } else {
             //  System.out.println("Condition not true");
         }
@@ -612,13 +621,27 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
      * @param pp array of Petri net places
      * @param currentTime current time
      */
-    public void actOut(PetriP[] pp, double currentTime) {  // parameter current time ia added by Inna 11.07.2018 for protocol events
+    public void actOut(PetriP[] pp, double currentTime) throws ExceptionInvalidTimeDelay {  // parameter current time ia added by Inna 11.07.2018 for protocol events
         if (buffer > 0) {
+            TimeDelay delay = null;
+              if (num == 0 && (timeOut.size() == 1) && timeOut.get(0).getActualDelayTime() == 0.0) {
+                 
+              } else {
+                delay = timeOut.get(num);
+              }
+            
             for (int j = 0; j < getOutP().size(); j++) {
-                pp[getOutP().get(j)].increaseMark(quantOut.get(j));
+                PetriP p = pp[getOutP().get(j)];
+                if (onCalculateNumberOfLinks != null && onCalculateNumberOfLinks.getArcNumber() == p.getNumber() ){
+                    int value = onCalculateNumberOfLinks.getNumberOfLinks(delay.getActualDelayTime());
+//                    System.out.println("Calculating dynamic links for "+ p.getName() + " "+ value + " delay was = "+ delay.getActualDelayTime() + " "+ currentTime);
+                    p.increaseMark(value, currentTime);
+                } else {
+                    p.increaseMark(quantOut.get(j), currentTime);
+                }    
             }
             if (num == 0 && (timeOut.size() == 1)) {
-                timeOut.set(0, Double.MAX_VALUE);
+                timeOut.set(0, new TimeDelay(Double.MAX_VALUE, 0));
             } else {
                 timeOut.remove(num);
             }
@@ -629,6 +652,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
             if (observedMin > buffer) {
                 observedMin = buffer;
             }
+            numOfCompleted++;
         } else {
             // System.out.println("Buffer is null");
         }
@@ -643,8 +667,8 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
         minTime = Double.MAX_VALUE;
         if (timeOut.size() > 0) {
             for (int i = 0; i < timeOut.size(); i++) {
-                if (timeOut.get(i) < minTime) {
-                    minTime = timeOut.get(i);
+                if (timeOut.get(i).getTimeOut() < minTime) {
+                    minTime = timeOut.get(i).getTimeOut();
                     num = i;
                 }
             }
@@ -656,7 +680,7 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
      *
      */
     public void print() {
-        for (double time: timeOut) {
+        for (TimeDelay time: timeOut) {
             System.out.println(time + "   " + this.getName());
         }
     }
@@ -870,5 +894,26 @@ public class PetriT extends PetriMainElement implements Cloneable, Serializable 
     public void setId(String id) {
         this.id = id;
     }
-
+    
+    public int getNumOfCompleted(){
+        return numOfCompleted;
+    }
+    
+    public void setOnCalculateNumberOfLinks(OnCalculateNumberOfLinks onCalculateNumberOfLinks){
+        this.onCalculateNumberOfLinks = onCalculateNumberOfLinks;
+    }
+    
+    public double getTotalRunTime(){
+        return totalRunTime;
+    }
+    
+    public double getMeanRunTime(){
+        if (numOfStarted == 0 ) return 0;
+        
+        return totalRunTime / numOfStarted;
+    }
+    
+    public int getNumStarted(){
+        return numOfStarted;
+    }
 }
